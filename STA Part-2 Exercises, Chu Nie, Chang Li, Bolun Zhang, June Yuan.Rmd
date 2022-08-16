@@ -1,0 +1,689 @@
+---
+title: "STA Part-2 Exercises"
+author: "Chu Nie， Chang Li， Bolun Zhang，June Yuan"
+date: "2022/8/6"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Probability Practice
+
+## Part A
+```{r}
+# P(Y)=0.65
+# P(RC)=0.3
+# P(TC)=1-P(RC)=0.7
+# P(Y/RC)=0.5
+Y<-0.65
+RC<-0.3
+TC<-1-RC
+YRC<-0.5
+# P(Y)=P(Y/RC)*P(RC)+P(Y/TC)*P(TC)
+# P(Y/TC)=(P(Y)-P(Y/RC)*P(RC))/P(TC)
+P<-(Y-(YRC*RC))/TC
+print(P)
+```
+So the fraction of people who are truthful clickers answered yes is 0.714.
+
+## Part B
+```{r}
+# P(disease)=0.000025
+# P(not disease)=1-P(disease)=0.999975
+# P(positive/disease)=0.993
+# P(negative/not disease)=0.9999
+# P(positive/not disease)=1-P(negative/not disease)=0.0001
+d<-0.000025
+dc<-1-d
+pd<-0.993
+ndc<-0.9999
+pdc<-0.0001
+# P(disease/positive)=(P(positive/disease)*P(disease))/((P(positive/disease)*P(disease))+(P(positive/not disease)*P(not disease)))
+pdp<-(pd*d)/((pd*d)+(pdc*dc))
+print(pdp)
+```
+So the probability that a person who tests positive have the disease is 0.1988824.
+
+
+# Wrangling the Billboard Top 100
+
+```{r}
+library(readr)
+urlfile2<-"https://raw.githubusercontent.com/jgscott/STA380/master/data/billboard.csv"
+billboard <- read_csv(url(urlfile2))
+head(billboard)
+```
+## Part A
+```{r}
+library(dplyr)
+library(plyr)
+library(ggplot2)
+
+top_lst <- billboard %>%select(c(performer,song,week,week_position,year))%>% filter(year >=1958 & week_position <= 100) %>% group_by(performer,song)%>%ddply(c('performer','song'),summarise,count=length(song))%>% arrange(desc(count))
+
+top_10_lst <-top_lst[1:10,]
+top_10_lst
+```
+
+## Part B
+```{r}
+bill1 <- billboard %>% filter(year !=2021 & year !=1958)
+unique(bill1[c("performer","song",'year')]) -> unqiue_lst
+unqiue_lst %>% group_by(year)%>% tally() -> year_unique_song
+ggplot(year_unique_song,aes(x=year,y=n))+geom_line()+ggtitle('Unique Song Per Year')
+```
+
+## Part C
+```{r}
+twh_artist <-top_lst %>% filter(count >= 10)%>%group_by(performer)%>% tally()%>% filter(n>=30)
+ggplot(twh_artist, aes(x=performer, y=n,fill = performer)) +geom_bar(stat="identity",show.legend = F)+coord_flip()
+```
+
+
+# Visual story telling part 1: green buildings
+
+```{r}
+library(readr)
+urlfile3<-"https://raw.githubusercontent.com/jgscott/STA380/master/data/greenbuildings.csv"
+greenbuildings <- read_csv(urlfile3)
+head(greenbuildings)
+
+# Plot the distribustion of leasing_rate less than 15%
+# From this plot  we know that there are more than 150 properties have 0 % leasing rate, which is
+# abnormal, so I consider them as outlier
+greenbuildings %>% filter(leasing_rate <=15)%>%ggplot(aes(leasing_rate))+geom_histogram()
+```
+From this plot  we know that there are more than 150 properties have 0 % leasing rate, which is abnormal, so I consider them as outlier. However, there exists significant amount of buildings have leasing_rate less than 10%, so dropping them entirely may cause bias. 
+```{r}
+greenbuildings %>% filter(leasing_rate >80)%>%ggplot(aes(leasing_rate))+geom_histogram()
+```
+In the above plot, I plotted the distribustion of leasing rate larger than 80%. There are more than 750 of buildings have 100% leasing rate.
+```{r}
+greenbuildings %>% filter(green_rating==1) -> GBgreen
+greenbuildings %>% filter(green_rating==0) -> GBNotgreen
+
+ggplot()+geom_histogram(data = GBgreen,aes(x=leasing_rate),fill='green')+ggtitle('Green Building Leasing_rate Distribution')
+ggplot()+geom_histogram(data=GBNotgreen,aes(x=leasing_rate),fill='orange')+ggtitle('Not Green Building Leasing_rate Distribution')
+```
+From the plot above, we get the information that most of the 0% leasing_rate comes from buildings that are not green.Then we could say most of the outliers come from not-green buildings. 
+
+Then, we take a look at the rent price. We first look at the distribution for both green and non-green buildings.
+```{r}
+ggplot()+geom_histogram(data = GBgreen,aes(x=Rent),fill='green')+ggtitle('Green Building Rent Distribution')
+ggplot()+geom_histogram(data=GBNotgreen,aes(x=Rent),fill='orange')+ggtitle('Not Green Building Rent Distribution')
+```
+According to the plots above, the non_green buildings have wider price range. Both green and non-green buildings have rent that accumulated around the range 0-100. Also, there exists some buildings that are pricing over 100 for both green and non-green buildings. Guru was right on this one so we proceed to look at median rent. 
+```{r}
+ggplot()+geom_boxplot(data = GBgreen,aes(x=Rent),fill='green')+ggtitle('Green Building Rent Distribution')
+ggplot()+geom_boxplot(data=GBNotgreen,aes(x=Rent),fill='orange')+ggtitle('Not Green Building Rent Distribution')
+
+median(GBgreen$Rent)
+median(GBNotgreen$Rent)
+```
+While green buildings have higher median rent, the non-green buildings have wider distribution range and more high rent outliers. It is very shallow for Guru to claim that green buildings have higher economic values, since other factors, like location, could affect the rent price as well. 
+```{r}
+library(reshape2)
+rent_green <- greenbuildings%>% select(c(Rent,green_rating))
+corr_mat <- round(cor(rent_green),4)
+melted_corr_mat <- melt(corr_mat)
+ggplot(data = melted_corr_mat, aes(x=Var1, y=Var2,fill=value))+geom_tile()+geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)
+```
+According to the correlation heatmap, we can tell that the green_rating has weak correlation with Rent.
+
+At this point, we know that guru was not right. To find out what affects rent, we need to take further analysis on this. 
+
+We further look at linear regression to gain some insights.
+```{r}
+green_lm <-lm(Rent~.,data = greenbuildings)
+summary(green_lm)
+```
+According to the result above, green_rating's p-val is larger than 0.1, thus, we fail to reject the null hypothesis. The coefficient of green_rating is statistically insignificant, which means green_rating does not play an important role in affecting rent, while cluster rent,electricity_cost, age, cluster, and som other factors have significant relationship with rent. The result of the regression further strengthen our idea that guru's analysis contains flaws. To improve guru's analysis, we could include some of the variables that are statistically significant in linear regression. See the correlation heatmap below.
+```{r}
+dt <- greenbuildings%>% select(-c(CS_PropertyID,empl_gr,leasing_rate,renovated,LEED,Energystar,green_rating,total_dd_07  ))
+corr_mat <- round(cor(dt),2)
+melted_corr_mat <- melt(corr_mat)
+ggplot(data = melted_corr_mat, aes(x=Var1, y=Var2,fill=value))+geom_tile()+geom_text(aes(Var2, Var1, label = value),color = "white", size = 4)
+```
+
+
+# Visual story telling part 2: Capital Metro data
+```{r}
+# An overview of the data set
+urlfile4<-"https://raw.githubusercontent.com/jgscott/STA380/master/data/capmetro_UT.csv"
+capmetro_UT <- read_csv(url(urlfile4))
+head(capmetro_UT)
+```
+In the plot below, we have our average boarding in each hour of the day, facetting by day_of_week. There are three lines in each facet. Each line represents a month (see legend to learn boarding trend of respective month).
+```{r}
+capmetro_UT%>% group_by(hour_of_day,month,day_of_week)%>%summarise_at(vars(boarding), list(avg_boarding = mean)) -> cap1
+
+ggplot(cap1)+geom_line(aes(x=hour_of_day,y=avg_boarding,color = month))+facet_grid(rows=vars(day_of_week))+scale_x_continuous(breaks=c(6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21))+ggtitle('Average Boarding in Each Hour')
+```
+In the above plot, the hour of peak boardings are approximately the same for all weekdays, while weekends do not have a significant hour of peak boardings. The avg_boarding lines are relatively flat in weekends, meaning less traveling to school. The peak boarding hour of weekdays are between 16:00-18:00, illustrating that people tends to take bus/metro to transport back home. The average boarding on Monday in September is slightly lower than the other two months. It could be due to the fact that Labor Day falls on the first Monday of September. November has lower average boarding on Wed, Thur, Fri than other months, since Thanks Giving Holiday starts from the forth Thursday in November to the following Sunday. People tends to travel one day ahead of the holiday, so Wed in November also has lower average boarding. 
+```{r}
+capmetro_UT%>% group_by(hour_of_day,month,day_of_week)%>%summarise_at(vars(alighting), list(avg_alighting = mean)) -> cap2
+
+ggplot(cap2)+geom_line(aes(x=hour_of_day,y=avg_alighting,color = month))+facet_grid(rows=vars(day_of_week))+scale_x_continuous(breaks=c(6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21))+ggtitle('Average Alighting in Each Hour')
+```
+The plot above, we have our average alighting in each hour of the day, facetting by day_of_week. There are three lines in each facet. Each line represents a month (see legend to learn alighting trend of respective month). The avg_alighting plot is approximately a mirror flip of avg_boarding plot. 
+
+In the above plot, the hour of peak alignting are approximately the same for all weekdays, while weekends do not have a significant hour of peak alightings. The avg_alighting lines are relatively flat in weekends, meaning less traveling to school. The peak alighting hour of weekdays are between 8:0-10:00, illustrating that it is the morning peak period for people to transport to school/workplace. The average alighting on Monday in September is slightly lower than the other two months for same reason in avg_boarding plot. November has lower average alighting on Wed, Thur, Fri than other months, for identical reason in avg_boarding.
+
+In the plot below, boarding and temperature in each 15-minute window are plotted, facetting by hour_of_day and coloring by weekend/weekday.The horizontal line is the average boarding.
+```{r}
+capmetro_UT %>% ggplot()+geom_point(aes(x=temperature,y=boarding,color = weekend)) +facet_grid(cols=vars(hour_of_day),scales ="free")+ggtitle('Boarding vs. Temperature')+geom_hline(yintercept=mean(capmetro_UT$temperature), linetype="dashed", color = "black")
+```
+In the plot above, we can tell weekdays tends to have significantly higher boarding amount in all the hours than weekends do. The boarding count is larger during the noon and afternoon time. In general, higher temperature will result in higher boarding count.
+```{r}
+capmetro_UT %>% ggplot()+geom_point(aes(x=temperature,y=alighting,color = weekend)) +facet_grid(cols=vars(hour_of_day),scales ="free")+ggtitle('Alighting vs. temperature')+geom_hline(yintercept=mean(capmetro_UT$temperature), linetype="dashed", color = "black")
+```
+In the plot above, alighting and temperature in each 15-minute window are plotted, facetting by hour_of_day and coloring by weekend/weekday.The horizontal line is the average alighting.
+
+We can also tell weekdays tends to have significantly higher alighting amount in all the hours than weekends do. The alighting count is larger during the morning peak time. In general, higher temperature will result in higher boarding count no matter which hour. 
+
+
+# Portfolio modeling
+
+## Porfolio 1
+25% SPY. SPY is the largest ETF and has a huge amount of fluid, which is one of the best ETFs to invest.
+25% QQQ. QQQ tracks the Nasdaq-100, an index of the Nasdaq Stock Market's 100 largest nonfinancial members.
+25% VUG. VUG concentrates on large-cap U.S. based growth equities.
+25% VTI. VTI tracks the CRSP US total market Index's performance. its growth and value styles are appeared in large, mid, and small cap equity.
+```{r}
+library("mosaic")
+library("quantmod")
+library("foreach")
+
+stock=c("SPY","QQQ","VUG","VTI")
+getSymbols(stock,from="2016-08-13")
+for(ticker in stock) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+head(SPYa)
+
+# Combine all the returns in a matrix
+return=cbind(ClCl(SPYa),ClCl(QQQa),ClCl(VUGa),ClCl(VTIa))
+
+return<-as.matrix(na.omit(return))
+
+# Compute the returns from the closing prices
+pairs(return)
+```
+According to the graph, the earnings of these ETFs are highly connected. When one of the ETFs going up, the others will also going up, and when one of the ETFs going down, the others will also going down. This means all ETFs are moving with market trends. 
+
+Estimate the 20-day value at risk.
+```{r}
+return.day=resample(return,1,orig.ids=FALSE)
+
+
+wealth<-100000
+weight<-c(0.25,0.25,0.25,0.25)
+holdings<-weight*wealth
+holdings<-holdings*(1+return.day)
+
+set.seed(8)
+# Simulate other different possible scenarios
+original_wealth=100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	wealth = original_wealth
+	weight = c(0.25, 0.25, 0.25, 0.25)
+	holdings = weight * wealth
+	n_days = 20
+	wealthtracker = rep(0, n_days)
+	for(today in 1:n_days) {
+		return.today = resample(return, 1, orig.ids=FALSE) 
+		holdings = holdings + holdings*return.today
+		wealth = sum(holdings)
+		wealthtracker[today] = wealth
+	}
+	wealthtracker
+}
+# print the hist
+hist(sim1[,n_days],25,main="Portfolio 1")
+
+mean(sim1[,n_days]-original_wealth)
+hist(sim1[,n_days]-original_wealth,breaks=30,main="Portfolio 1")
+quantile(sim1[,n_days]- original_wealth, prob=0.05)
+```
+According to the graph, after a 20 day bootstrapped period, there is still a chance of losing. However, there is still 1402.79 mean earnings. 5% Var over a 20 day bootstrapped period is 8076.904.
+
+## Portfolio 2
+25% SCHA
+25% HDV
+25% DSI
+25% SDIV
+```{r}
+library(mosaic)
+library(quantmod)
+library(foreach)
+
+stock2 = c("SCHA", "HDV", "DSI", "SDIV")
+price2 = getSymbols(stock2, from = "2016-08-13")
+
+for(ticker in stock2) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+# Combine all the returns in a matrix
+return2 = cbind(	ClCl(SCHAa),
+								ClCl(HDVa),
+								ClCl(DSIa),
+								ClCl(SDIVa))
+return2 = as.matrix(na.omit(return2))
+# Compute the returns from the closing prices
+pairs(return2)
+```
+According to the graph, the correlation coefficient of these four ETFs is lower than the first group, which means this group has a higher value risky.
+
+Estimate the 20-day value at risk.
+```{r}
+return.day=resample(return2,1,orig.ids=FALSE)
+
+
+wealth<-100000
+weight<-c(0.25,0.25,0.25,0.25)
+holdings<-weight*wealth
+holdings<-holdings*(1+return.day)
+
+set.seed(8)
+# Simulate other different possible scenarios
+original_wealth=100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	wealth = original_wealth
+	weight = c(0.25, 0.25, 0.25, 0.25)
+	holdings = weight * wealth
+	n_days = 20
+	wealthtracker = rep(0, n_days)
+	for(today in 1:n_days) {
+		return.today = resample(return2, 1, orig.ids=FALSE) 
+		holdings = holdings + holdings*return.today
+		wealth = sum(holdings)
+		wealthtracker[today] = wealth
+	}
+	wealthtracker
+}
+# print the hist
+hist(sim1[,n_days],25,main="Portfolio 2")
+
+mean(sim1[,n_days]-original_wealth)
+hist(sim1[,n_days]-original_wealth,breaks=30,main="Portfolio 2")
+quantile(sim1[,n_days]- original_wealth, prob=0.05)
+```
+According to the graph, after a 20 day period, there is still a chance of losing. However, there is still 1425.48 mean earnings. 5% Var over a 20 day period is 7929.719.
+
+## Portfolio 3
+20% SPY
+20% HDV
+20% DSI
+20% VTI
+20% QQQ
+```{r}
+library(mosaic)
+library(quantmod)
+library(foreach)
+
+stock3 = c("SPY", "HDV", "DSI", "VTI","QQQ")
+price3 = getSymbols(stock, from = "2016-08-13")
+
+for(ticker in stock) {
+	expr = paste0(ticker, "a = adjustOHLC(", ticker, ")")
+	eval(parse(text=expr))
+}
+# Combine all the returns in a matrix
+return3 = cbind(	ClCl(SPYa),
+								ClCl(HDVa),
+								ClCl(DSIa),
+								ClCl(VTIa),ClCl(QQQa))
+return3 = as.matrix(na.omit(return3))
+# Compute the returns from the closing prices
+pairs(return3)
+```
+According to the graph, the correlation coefficient of these five ETFs is lower than the first group, which means this group has a higher value risky.
+
+Estimate the 20-day value at risk.
+```{r}
+return.day=resample(return3,1,orig.ids=FALSE)
+
+
+wealth<-100000
+weight<-c(0.2,0.2,0.2,0.2,0.2)
+holdings<-weight*wealth
+holdings<-holdings*(1+return.day)
+
+set.seed(8)
+# Simulate other different possible scenarios
+original_wealth=100000
+sim1 = foreach(i=1:5000, .combine='rbind') %do% {
+	wealth = original_wealth
+	weight = c(0.2, 0.2, 0.2, 0.2,0.2)
+	holdings = weight * wealth
+	n_days = 20
+	wealthtracker = rep(0, n_days)
+	for(today in 1:n_days) {
+		return.today = resample(return3, 1, orig.ids=FALSE) 
+		holdings = holdings + holdings*return.today
+		wealth = sum(holdings)
+		wealthtracker[today] = wealth
+	}
+	wealthtracker
+}
+# print the hist
+hist(sim1[,n_days],25,main="Portfolio 3")
+
+mean(sim1[,n_days]-original_wealth)
+hist(sim1[,n_days]-original_wealth,breaks=30,main="Portfolio 3")
+quantile(sim1[,n_days]- original_wealth, prob=0.05)
+```
+According to the graph, after a 20 day period, there is still a chance of losing. However, there is still 1494.685 mean earnings. 5% Var over a 20 day period is 7457.022.
+
+In Summary:
+Portfolio 1 is a good long-term investing. The 5% var and the return are the most balanced. Also, it's stable, less risky, and 5% Var over a 20 day bootstrapped period is 8076.904. However, it's mean earning is the lowest. Portfolio 2 and Portfolio 3 are better for the investor who are willing to take higher risks. They have higher mean earnings, 1425.48 and 1494.685. Their 5% Var over a 20 day period are 7929.719 and 7457.022.
+
+
+# Clustering and PCA
+
+```{r}
+library(readr)
+urlfile6<-"https://raw.githubusercontent.com/jgscott/STA380/master/data/wine.csv"
+wine <- read_csv(url(urlfile6))
+head(wine)
+
+library(tidyverse)
+library(ggplot2)
+library(factoextra)
+library(dplyr)
+library(cluster)
+library(GGally)
+library(caret) 
+```
+## Let's look at K-mean first.
+
+In the code below, we use pam (robust kmean) to get the wine clustering for color. We then compare the kmean clustering result with the real record. True positive: 1525, False Positive:55, False Negative: 74, and True Negative: 4843. The accuracy for kmean in color clustering is 0.9801.
+```{r}
+#K-mean - color
+wine_scale <- wine%>% select(-c(quality,color)) %>% scale()
+
+pam1 <-pam(wine_scale,k=2)
+
+pam1$clusinfo[,1] # Get how many data in each cluster
+#wine%>%group_by(color)%>% tally()%>% mutate(cluster = pam1$clusinfo[,1]) # Compare the real category and cluster results
+
+wine1 <-wine%>% mutate(clr = ifelse(color == 'red',1,2))
+
+t1 <- xtabs(~pam1$clustering + wine1$clr)
+
+confusionMatrix(t1)
+
+pamclust <-wine %>% mutate(cluster = as.factor(pam1$clustering))
+
+fviz_cluster(pam1,data = wine_scale)
+
+pamclust %>% ggpairs(col = c("total.sulfur.dioxide","density","pH","volatile.acidity"), aes(color = cluster,alpha=0.6))
+
+pamclust%>%ggplot(aes(total.sulfur.dioxide,volatile.acidity, color=color, shape=cluster))+geom_point(size=4,alpha=0.6)
+```
+In the code below, we use pam (robust kmean) to get the wine clustering for quality. We then compare the kmean clustering result with the real record. The accuracy is only 0.1973.
+```{r}
+# K-mean - quality
+
+pam2 <-pam(wine_scale,k=7)
+
+pam2$clusinfo[,1] # Get how many data in each cluster
+#wine%>%group_by(quality)%>% tally()%>% mutate(cluster2 = pam2$clusinfo[,1]) # Compare the real category and cluster results
+
+wine1 <-wine%>% mutate(quali = quality-2)
+
+tab <-xtabs(~pam2$clustering + wine1$quali)
+
+confusionMatrix(tab)
+
+pamclust2 <-wine %>% mutate(cluster = as.factor(pam2$clustering))
+
+fviz_cluster(pam2,data = wine_scale)
+
+pamclust2 %>% ggpairs(col = c("total.sulfur.dioxide","density","pH","volatile.acidity"), aes(color = cluster,alpha=0.6))
+
+pamclust2 %>%ggplot(aes(total.sulfur.dioxide,volatile.acidity, color=as.factor(quality), shape=cluster))+geom_point(size=4,alpha=0.5)+scale_shape_manual(values=c(15,16,17,18,19,20,8))
+```
+
+## PCA
+
+In the code below, we look into PCA using prcomp. According to the confussion matrix, the accuracy for PCA in color is 0.9854, which is higher than K-mean's accuracy.
+```{r}
+wine_data <- wine %>% select(-c(color,quality))
+
+wine_pca <- prcomp(wine_data,center = T,scale=T)
+
+# PCA - Color
+## color in original classification in rotated axis
+#wine %>% mutate(PC1=wine_pca$x[, 1], PC2=wine_pca$x[, 2]) %>%ggplot(aes(PC1, PC2, color=color)) + geom_point() + coord_fixed()
+
+## color in original classification shape in PCA cluster
+pcaClust <- kmeans(wine_pca$x[,1:9],2, nstart=25) # Keep first 9 pc to gain more than 95% variance
+
+wine1 <-wine%>% mutate(clr = ifelse(color == 'red',1,2))
+
+t2 <- xtabs(~pcaClust$cluster + wine1$clr)
+confusionMatrix(t2)
+
+qplot(wine_pca$x[,1], wine_pca$x[,2], color=factor(wine$color),alpha=0.5, shape=factor(pcaClust$cluster), xlab='PC1', ylab='PC2')
+```
+In the code below, we look into PCA using prcomp. According to the confussion matrix, the accuracy for PCA in quality is 0.1213, which is lower than K-mean's accuracy.
+```{r}
+# PCA - quality
+## color in original classification in rotated axis
+#wine %>% mutate(PC1=wine_pca$x[, 1], PC2=wine_pca$x[, 2]) %>%ggplot(aes(PC1, PC2, color=as.factor(quality))) + geom_point() + coord_fixed()
+## color in original classification shape in PCA cluster
+pcaClust1 <- kmeans(wine_pca$x[,1:9],7, nstart=25)# Keep first 9 pc to gain more than 95% variance
+
+wine1 <-wine%>% mutate(quali = quality-2)
+
+tab2 <- xtabs(~pcaClust1$cluster + wine1$quali)
+
+confusionMatrix(tab2)
+
+qplot(wine_pca$x[,1], wine_pca$x[,2], color=as.factor(wine$quality),alpha=0.5, shape=factor(pcaClust1$cluster), xlab='PC1', ylab='PC2')+scale_shape_manual(values=c(15,16,17,18,19,20,8))
+```
+When distinguishing the color of the wine, PCA did a better job than K-mean but both techniques have relatively high accuracy. When it comes to distinguishing the quality of the wine, K-mean did a slightly better job even though the accuracy is very low. In general, the unsupervised techniques used above is not capable of distinguishing the higher from the lower quality wines.
+
+
+# Market segmentation
+
+```{r}
+urlfile7="https://raw.githubusercontent.com/jgscott/STA380/master/data/social_marketing.csv"
+social_marketing<-read_csv(url(urlfile7))
+
+library(tidyverse) 
+library(cluster)  
+library(factoextra)
+library(NbClust)
+library(corrplot)
+library(dplyr)
+
+market <- social_marketing
+#take a look at the data structure itself
+str(market)
+
+#select everything except ID and check the correlation among them
+correlation <- cor(market[c(2:37)])
+corrplot(correlation, method = 'color', tl.cex = 0.7)
+```
+As we can see on the plot, photo sharing and chatter, politics and travel, religion and sports fandom and some other pair seems to have some strong correlation as pairs. Among all pairs, college_uni and online gaming has a extremely strong correlation.
+```{r}
+#scale the data and exclude chatter, spam and adult
+market_scale <- scale(market[,3:35], center=TRUE, scale=TRUE)
+
+center_m = attr(market_scale,"scaled:center")
+scale_m = attr(market_scale,"scaled:scale")
+```
+Here we want to exclude chatter, spam and adult columns due to the fact that these columns are used to catch a lot of uncategorized data.
+
+Now we need to decide the number of cluster we need for k-means
+```{r}
+wss = fviz_nbclust(market_scale, kmeans, method = "wss") 
+plot(wss)
+```
+As we can see, there is much of an 'elbow' here. Here we choose 5 clusters as the number of clusters since the drop between 5 and 6 is not significant.
+```{r}
+#conduct knn with 5 clusters
+market_k = kmeans(market_scale, 5, nstart=25)
+
+#plot the cluster
+market_p = fviz_cluster(market_k, data = market_scale, 
+             ellipse.type = "euclid", ggtheme = theme_classic(),geom = c("point"))
+
+plot(market_p)
+```
+As we can see in the plot, the plot explains about 22% of the entire dataset, which is not super bad given the amount of data points and the noise within the data. We can find out what people are interested in the most in each cluster.
+```{r}
+#calculate the mean number of tweet in each cluster
+res = aggregate(market_scale, by=list(cluster=market_k$cluster), mean)
+res_t <- t(res)
+colnames(res_t) <- rownames(res)
+rownames(res_t) <- colnames(res)
+
+#we want to remove the correlation row
+res_t2 = res_t[-1,]
+k = colnames(res_t2)[apply(res_t2,1,which.max)]
+clus_features = cbind(rownames(res_t2),k)
+
+# show the final result
+clus_features <- data.frame(clus_features)
+clus_features %>% arrange(k)
+```
+Now we can summarize the characteristics in each cluster. 
+
+Cluster 1: Middle Aged Adults who has Families
+These people shows an interest in family, parenting, school, food and sports fandom. They seemed to be couples who are raising children and having interests in area like gardeing and sports. They appears to be more settled down and not affected much by trends. They can be a good target for products involving housing decoration, family entertainment and etc.
+
+Cluster 3: Younger Generation who lives through college life
+There people have passion in areas such as music, online gaming, sports playing, shopping and cooking. They seemed to be more energetic and following trends in the society. They have a stronger willing for sharing perspectives in life through social media and many of them are on the start-up stage of their own business. They are a great fit for products like electronic involving new technologies, gaming equipment, shopping deals and etc.
+
+Cluster 4: Healthism Believer
+These people really cares about their personal health and are willing to spend time and money to keep themselves fit. They spend a lot of time in outdoor activities and has a relatively comprehensive understanding on nutrition. They can be a good target for nutrition supplement product, personal fitness classes, and eco-friendly products.
+
+Cluster 5: Highly Educated Adults
+These people seems to focus on politics, news, traveling and dating. They don't necessarily have a family yet but they are mature enough to finance themselves for automotives. They counld be a potential target for cars and political news. They should also be a good fit for dating application.
+
+Among all these, there seems to be no feature standing out in cluster 2, whcih is acceptable. As we can see previously on the plot, there are a lot of overlapping in the region of cluster 2 and thus maybe a smaller number of clusters may yield a better result compare to the current one.
+
+
+# The Reuters corpus
+
+** Question: What are the least 10 frequent used words in the entire data set, can they be defined as less popular vocabularies? 
+** Approach: DocumentTermMatrix is used to calculate the frequencies of least 10 used words.
+```{r}
+library(tm)
+library(tidyverse)
+library(slam)
+library(proxy)
+
+read<-function(fname){readPlain(elem=list(content=readLines(fname)),id=fname,language='en')}
+
+# load data for all authors
+file<-Sys.glob("ReutersC50/C50train/*/*.txt")
+author<-lapply(file,read)
+name<-file%>%{strsplit(.,'/',fixed=TRUE)}%>%{lapply(.,tail,n=2)}%>%{lapply(.,paste0,collapse='')}%>%unlist
+
+# List authors
+a<-"ReutersC50/C50train/"
+a_list<-list.dirs(a,full.names=FALSE,recursive=FALSE)
+library("corpus")
+raw<-Corpus(VectorSource(author))
+document<-raw
+document<-tm_map(document,content_transformer(tolower))
+document<-tm_map(document,content_transformer(removeNumbers))
+document<-tm_map(document,content_transformer(removePunctuation))
+document<-tm_map(document,content_transformer(stripWhitespace))
+stopwords("en")
+stopwords("SMART")
+?stopwords
+
+# Remove stopwords
+document<-tm_map(document,content_transformer(removeWords),stopwords("en"))
+
+# Create a doc-term-matrix
+DTM<-DocumentTermMatrix(document)
+class(DTM)
+DTM<-removeSparseTerms(DTM,0.95)
+library(data.table)
+
+# Find frequent terms
+col<-colSums(as.matrix(DTM))
+length(col)
+feature<-data.table(name=attributes(col)$name,count=col)
+
+# List the least 10 frequent words
+least_frequent_word10<-feature[order(count)[1:10]]
+least_frequent_word10
+```
+
+** Conclusion: The least 10 frequency used words in the entire data set are thing - 130, cchina - 132, moving - 133, considered - 133, either - 134, success - 134, ever - 137, initial - 138, figure - 138, quickly - 139. To some extent, we can assume that these terms are less popular because of the large amount of data we have which covering many authors and works.
+
+
+# Association Rule Mining
+
+```{r}
+library(tidyverse)
+library(igraph)
+library(arules) 
+library(arulesViz)
+```
+We can take a look at the data before we clean it up to get a general idea
+```{r}
+#load in the raw data
+urlfile9="https://raw.githubusercontent.com/jgscott/STA380/master/data/groceries.txt"
+
+g = read.transactions(file=url(urlfile9),rm.duplicates=TRUE,format="basket",sep=',')
+
+#calculate the support for frequent iteam
+g_fq <- eclat (g, parameter = list(supp = 0.07, maxlen = 15))
+inspect(g_fq)
+
+#plot the frequency
+itemFrequencyPlot(g, topN=5, type="absolute",main="Item Frequency")
+```
+As we can see, whole milk has the highest frequency among all other, which is at a level of 2500. Then it followed by other vegetables, rolls, soda, and yogurt.
+
+Now as we have some initial idea about the dataset, we can move on and try to figure out different association rules among all the values to see their correlation. First we can try support > 0.005 and confidence > 0.1 to see how many rules we get.
+```{r}
+grules1 <- apriori(g, parameter = list(support = 0.005, conf = 0.1))
+summary(grules1)
+```
+In this case, we generated 1582 rules, which is quite a lot to analyze. We can change the parameters to try to reduce the total number of rules and get stronger rules. Here we try with support > 0.001 and confidence > 0.85.
+```{r}
+grules2 <- apriori(g, parameter = list(support = 0.001, conf = 0.85))
+summary(grules2)
+```
+This time we got a total number of 199 rules, which is much less that the previous case. We can see that among all the groups, group 3 and group 4 are the most common. For the sake of time, we will keep on with these threshold.
+
+To get a better understanding of the rules, we can sort them by confidence. Here are the top 5 rules below.
+```{r}
+#sort the rules based on confidence
+grules_s1<-sort(grules2, by="confidence", decreasing=TRUE)
+inspect(grules_s1[1:5])
+```
+As we can see in the chart, whole milk appears on all the rhs with a confidence of 1. This implies that as all these lhs items was purchased, such as rice, sugar canned fish and etc, whole milk was always purchased with them.
+We can also look at these rules based on their lift.
+```{r}
+grules_s2<-sort(grules2, by="lift", decreasing=TRUE)
+inspect(grules_s2[1:5])
+```
+By sorting with lift, we can see that liquor and bottled bear has the heighest life, which indicates that they are about 11 times more likely to be purchased together compare to selling individually. 
+
+Since we have know that whole milk has the highest frequency among all items, it could be helpful for us to understand the purchase pattern of customers who purchase whole milk. 
+```{r}
+new_rules <- apriori (data=g, parameter=list (supp=0.001,conf = 0.15, minlen=2), appearance = list(default="rhs",lhs="whole milk"), control = list (verbose=F)) 
+new_rules_s <- sort (new_rules, by="confidence", decreasing=TRUE)
+inspect(new_rules_s[1:5])
+```
+In this case, we can see that other vegetables, rolls and yogurt seems to be purchased with a confidence of 20-30% when whole milk is purchased. We can have a better understanding by turing this information in visual graph.
+```{r}
+plot(new_rules_s, method="graph", control = list(nodeCol = grey.colors(1), edgeCol = grey(.3),alpha = 1), interactive=FALSE)
+```
+The graph showed us a better visual for the rules. The bigger the dot size, the stronger the support that type of grocery has with whole mild. The more the color is towards red, the higher the lift it has with whole milk. As we can see, root vegetables has the strongest lift with whole milk among all other grocery. On the other hand, the other vegetables have a stronger lift. Yogurt kind of sits in the middle, where its lift and support are both quite strong.
+This make sense in the following way. Root vegetables such as potatoes' recipe involves a lot of use of whole milk, which explains why it has a strong lift. For yogurt, it is usually placed next to whole milk on the shelf. Thus it's support and lift to whole milk are both high. The only vague correlation is the high support between whole milk and other vegetables. One possible reason is that just like whole milk, other vegetables are also a frequently purchased item. Even though they do not necessarily have a relationship, their high requency caused the model falsely draw them toghther.
